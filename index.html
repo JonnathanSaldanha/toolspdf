@@ -10,6 +10,7 @@
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
@@ -171,7 +172,7 @@
         /* Quick select buttons */
         .quick-btns { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
 
-        /* Page grid */
+        /* Page grid (selection buttons) */
         .page-grid {
             display: flex;
             flex-wrap: wrap;
@@ -220,7 +221,7 @@
         .grid-3 { display: grid; gap: 0.75rem; }
         @media (min-width: 640px) { .grid-3 { grid-template-columns: repeat(3, 1fr); } }
 
-        /* Preview cards */
+        /* Preview area with canvas thumbnails */
         .preview-empty {
             padding: 2.5rem;
             text-align: center;
@@ -232,58 +233,56 @@
         .preview-grid {
             display: flex;
             flex-wrap: wrap;
-            gap: 0.75rem;
-            max-height: 24rem;
+            gap: 1rem;
+            max-height: 600px;
             overflow-y: auto;
-            padding: 0.75rem;
+            padding: 1rem;
             background: var(--bg);
             border-radius: var(--radius);
             border: 2px solid var(--border);
         }
         .preview-card {
-            width: 6rem; height: 8rem;
             border-radius: 0.5rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
             cursor: pointer;
             transition: all 0.2s;
             box-shadow: var(--shadow-sm);
             position: relative;
-            border: 2px solid transparent;
+            border: 3px solid transparent;
             background: var(--card);
+            overflow: hidden;
         }
         .preview-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); border-color: var(--primary); }
-        .preview-card.selected { background: var(--accent-bg); border-color: var(--secondary); box-shadow: var(--shadow-md); }
-        .preview-card .page-label { font-size: 0.875rem; font-weight: 500; }
+        .preview-card.selected { border-color: var(--secondary); box-shadow: var(--shadow-md); ring: 2px solid var(--secondary); }
+        .preview-card canvas { display: block; width: 160px; height: auto; }
         .preview-card .page-num {
             position: absolute;
-            bottom: 0.375rem;
-            right: 0.375rem;
+            bottom: 0.5rem;
+            right: 0.5rem;
             background: var(--primary);
             color: var(--primary-fg);
             font-size: 0.75rem;
-            padding: 0.125rem 0.5rem;
+            padding: 0.2rem 0.6rem;
             border-radius: 9999px;
             font-weight: 600;
+            box-shadow: var(--shadow-sm);
         }
         .preview-card .check {
             position: absolute;
-            top: 0.375rem;
-            right: 0.375rem;
+            top: 0.5rem;
+            right: 0.5rem;
             background: var(--gradient);
             color: var(--primary-fg);
-            width: 1.25rem; height: 1.25rem;
+            width: 1.75rem; height: 1.75rem;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.75rem;
+            font-size: 0.875rem;
             font-weight: 700;
+            box-shadow: var(--shadow-sm);
         }
 
-        /* Merge file list */
+        /* Merge file list with drag-drop */
         .file-item {
             display: flex;
             align-items: center;
@@ -291,13 +290,18 @@
             padding: 1rem;
             background: var(--accent-bg);
             border-radius: var(--radius);
-            border: 1px solid var(--border);
+            border: 2px solid var(--border);
             transition: all 0.2s;
             margin-bottom: 0.5rem;
+            cursor: grab;
+            user-select: none;
         }
+        .file-item:active { cursor: grabbing; }
         .file-item:hover { box-shadow: var(--shadow-sm); }
-        .file-icon { background: var(--gradient); padding: 0.5rem; border-radius: 0.5rem; flex-shrink: 0; }
-        .file-icon svg { width: 1.25rem; height: 1.25rem; color: #fff; }
+        .file-item.dragging { opacity: 0.5; border-color: var(--secondary); background: rgba(124,58,237,0.08); }
+        .file-item.drag-over { border-color: var(--primary); background: rgba(74,108,247,0.08); transform: scale(1.01); }
+        .file-thumb { flex-shrink: 0; border-radius: 0.5rem; overflow: hidden; box-shadow: var(--shadow-sm); background: #fff; }
+        .file-thumb canvas { display: block; width: 70px; height: auto; }
         .file-info { flex: 1; min-width: 0; }
         .file-info p:first-child { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .file-info p:last-child { font-size: 0.875rem; color: var(--muted); }
@@ -315,6 +319,15 @@
         .icon-btn:disabled { opacity: 0.3; }
         .icon-btn.delete:hover { background: rgba(239,68,68,0.1); color: var(--destructive); }
         .icon-btn svg { width: 1rem; height: 1rem; }
+        .drag-handle {
+            cursor: grab;
+            color: var(--muted);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+        }
+        .drag-handle:active { cursor: grabbing; }
+        .drag-handle svg { width: 1.25rem; height: 1.25rem; }
 
         /* Input */
         .input-group { margin-bottom: 1rem; }
@@ -471,7 +484,7 @@
                     <div class="merge-wrapper">
                         <div class="panel">
                             <h2>Adicionar Arquivos PDF</h2>
-                            <div class="upload-area" onclick="document.getElementById('mergeInput').click()">
+                            <div class="upload-area" onclick="document.getElementById('mergeInput').click()" id="mergeUploadArea">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /></svg>
                                 <p>Clique para selecionar arquivos PDF</p>
                                 <p>Ou arraste e solte vários arquivos aqui</p>
@@ -480,6 +493,7 @@
                         </div>
                         <div class="panel" id="mergeListPanel" style="display:none">
                             <h2 id="mergeListTitle">Arquivos na Fila</h2>
+                            <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem;">↕ Arraste os arquivos para reordenar</p>
                             <div id="mergeFileList"></div>
                             <div class="input-group" style="margin-top:1.5rem">
                                 <label>Nome do arquivo final:</label>
@@ -504,8 +518,26 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
+
         const { PDFDocument } = PDFLib;
+
+        // Make functions globally accessible
+        window.switchTab = switchTab;
+        window.handleSplitFile = handleSplitFile;
+        window.handleMergeFiles = handleMergeFiles;
+        window.selectAllPages = selectAllPages;
+        window.selectNoPages = selectNoPages;
+        window.selectEvenPages = selectEvenPages;
+        window.selectOddPages = selectOddPages;
+        window.extractSingle = extractSingle;
+        window.extractZip = extractZip;
+        window.extractIndividual = extractIndividual;
+        window.mergePdfs = mergePdfs;
+        window.togglePage = togglePage;
+        window.removeMerge = removeMerge;
 
         // Toast
         function showToast(msg, type = 'success') {
@@ -525,6 +557,21 @@
             document.getElementById('content-' + tab).classList.add('active');
         }
 
+        // === Render PDF page to canvas ===
+        async function renderPageToCanvas(pdfData, pageNum, width) {
+            const doc = await pdfjsLib.getDocument({ data: pdfData.slice() }).promise;
+            const page = await doc.getPage(pageNum);
+            const vp = page.getViewport({ scale: 1 });
+            const scale = width / vp.width;
+            const scaledVp = page.getViewport({ scale });
+            const canvas = document.createElement('canvas');
+            canvas.width = scaledVp.width;
+            canvas.height = scaledVp.height;
+            const ctx = canvas.getContext('2d');
+            await page.render({ canvasContext: ctx, viewport: scaledVp }).promise;
+            return canvas;
+        }
+
         // ===== SPLIT =====
         let splitDoc = null, splitBytes = null, splitFileName = '', splitTotalPages = 0;
         let selectedPages = new Set();
@@ -535,7 +582,7 @@
             return (bytes / 1048576).toFixed(1) + ' MB';
         }
 
-        // Drag and drop for split
+        // Drag and drop for split upload
         const splitUpload = document.getElementById('splitUpload');
         splitUpload.addEventListener('dragover', e => { e.preventDefault(); splitUpload.style.background = 'rgba(74,108,247,0.06)'; });
         splitUpload.addEventListener('dragleave', () => { splitUpload.style.background = ''; });
@@ -567,12 +614,9 @@
         }
 
         function renderSplitUI(file) {
-            // Info
             const info = document.getElementById('splitInfo');
             info.style.display = 'block';
             info.innerHTML = '<div class="info-box"><p><strong>Arquivo:</strong> ' + splitFileName + '.pdf</p><p><strong>Tamanho:</strong> ' + formatSize(file.size) + '</p><p><strong>Páginas:</strong> ' + splitTotalPages + '</p></div>';
-
-            // Pages
             document.getElementById('splitSelectPanel').style.display = 'block';
             document.getElementById('splitActionsPanel').style.display = 'block';
             renderPageGrid();
@@ -592,19 +636,45 @@
             updateSelectionUI();
         }
 
-        function renderPreview() {
+        async function renderPreview() {
             const area = document.getElementById('previewArea');
-            let html = '<div class="preview-grid">';
+            const container = document.createElement('div');
+            container.className = 'preview-grid';
+
             for (let i = 1; i <= splitTotalPages; i++) {
                 const sel = selectedPages.has(i);
-                html += '<div class="preview-card' + (sel ? ' selected' : '') + '" onclick="togglePage(' + i + ')">';
-                html += '<span class="page-label">Página ' + i + '</span>';
-                html += '<span class="page-num">' + i + '</span>';
-                if (sel) html += '<span class="check">✓</span>';
-                html += '</div>';
+                const card = document.createElement('div');
+                card.className = 'preview-card' + (sel ? ' selected' : '');
+                card.onclick = () => togglePage(i);
+
+                // Render actual PDF page
+                try {
+                    const canvas = await renderPageToCanvas(splitBytes, i, 160);
+                    card.appendChild(canvas);
+                } catch(e) {
+                    const placeholder = document.createElement('div');
+                    placeholder.style.cssText = 'width:160px;height:200px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.8rem;';
+                    placeholder.textContent = 'Página ' + i;
+                    card.appendChild(placeholder);
+                }
+
+                const numBadge = document.createElement('span');
+                numBadge.className = 'page-num';
+                numBadge.textContent = i;
+                card.appendChild(numBadge);
+
+                if (sel) {
+                    const check = document.createElement('span');
+                    check.className = 'check';
+                    check.textContent = '✓';
+                    card.appendChild(check);
+                }
+
+                container.appendChild(card);
             }
-            html += '</div>';
-            area.innerHTML = html;
+
+            area.innerHTML = '';
+            area.appendChild(container);
         }
 
         function togglePage(p) {
@@ -695,9 +765,10 @@
 
         // ===== MERGE =====
         let mergeFiles = [];
+        let dragSrcIndex = null;
 
-        // Drag and drop for merge upload
-        const mergeUploadArea = document.querySelector('#content-merge .upload-area');
+        // Drag and drop for merge upload area
+        const mergeUploadArea = document.getElementById('mergeUploadArea');
         mergeUploadArea.addEventListener('dragover', e => { e.preventDefault(); mergeUploadArea.style.background = 'rgba(74,108,247,0.06)'; });
         mergeUploadArea.addEventListener('dragleave', () => { mergeUploadArea.style.background = ''; });
         mergeUploadArea.addEventListener('drop', async e => {
@@ -726,7 +797,7 @@
             if (count) { showToast(count + ' arquivo(s) adicionado(s)!'); renderMergeList(); }
         }
 
-        function renderMergeList() {
+        async function renderMergeList() {
             const panel = document.getElementById('mergeListPanel');
             if (mergeFiles.length === 0) { panel.style.display = 'none'; return; }
             panel.style.display = 'block';
@@ -734,25 +805,83 @@
             document.getElementById('mergeListTitle').textContent = 'Arquivos na Fila (' + mergeFiles.length + ' arquivos · ' + totalP + ' páginas)';
             const list = document.getElementById('mergeFileList');
             list.innerHTML = '';
-            mergeFiles.forEach((f, i) => {
-                list.innerHTML += '<div class="file-item">' +
-                    '<div class="file-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg></div>' +
-                    '<div class="file-info"><p>' + f.name + '</p><p>' + formatSize(f.size) + ' · ' + f.pages + ' página(s)</p></div>' +
-                    '<div class="file-actions">' +
-                    '<button class="icon-btn" onclick="moveMerge(' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + '><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" /></svg></button>' +
-                    '<button class="icon-btn" onclick="moveMerge(' + i + ',1)"' + (i === mergeFiles.length - 1 ? ' disabled' : '') + '><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3" /></svg></button>' +
-                    '<button class="icon-btn delete" onclick="removeMerge(\'' + f.id + '\')"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg></button>' +
-                    '</div></div>';
-            });
+
+            for (let i = 0; i < mergeFiles.length; i++) {
+                const f = mergeFiles[i];
+                const item = document.createElement('div');
+                item.className = 'file-item';
+                item.draggable = true;
+                item.dataset.index = i;
+
+                // Drag events for reordering
+                item.addEventListener('dragstart', (e) => {
+                    dragSrcIndex = i;
+                    item.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', i);
+                });
+                item.addEventListener('dragend', () => {
+                    item.classList.remove('dragging');
+                    document.querySelectorAll('.file-item').forEach(el => el.classList.remove('drag-over'));
+                });
+                item.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    item.classList.add('drag-over');
+                });
+                item.addEventListener('dragleave', () => {
+                    item.classList.remove('drag-over');
+                });
+                item.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    item.classList.remove('drag-over');
+                    const fromIndex = dragSrcIndex;
+                    const toIndex = i;
+                    if (fromIndex !== null && fromIndex !== toIndex) {
+                        const [moved] = mergeFiles.splice(fromIndex, 1);
+                        mergeFiles.splice(toIndex, 0, moved);
+                        renderMergeList();
+                    }
+                });
+
+                // Drag handle
+                const handle = document.createElement('div');
+                handle.className = 'drag-handle';
+                handle.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>';
+                item.appendChild(handle);
+
+                // Thumbnail
+                const thumb = document.createElement('div');
+                thumb.className = 'file-thumb';
+                try {
+                    const canvas = await renderPageToCanvas(f.bytes, 1, 70);
+                    thumb.appendChild(canvas);
+                } catch(e) {
+                    thumb.innerHTML = '<div style="width:70px;height:90px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--muted)">PDF</div>';
+                }
+                item.appendChild(thumb);
+
+                // Info
+                const info = document.createElement('div');
+                info.className = 'file-info';
+                info.innerHTML = '<p>' + f.name + '</p><p>' + formatSize(f.size) + ' · ' + f.pages + ' página(s)</p>';
+                item.appendChild(info);
+
+                // Actions
+                const actions = document.createElement('div');
+                actions.className = 'file-actions';
+                const delBtn = document.createElement('button');
+                delBtn.className = 'icon-btn delete';
+                delBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>';
+                delBtn.onclick = (e) => { e.stopPropagation(); removeMerge(f.id); };
+                actions.appendChild(delBtn);
+                item.appendChild(actions);
+
+                list.appendChild(item);
+            }
+
             document.getElementById('btnMerge').disabled = mergeFiles.length < 2;
             document.getElementById('btnMerge').innerHTML = '🔗 Juntar PDFs (' + totalP + ' páginas)';
-        }
-
-        function moveMerge(i, dir) {
-            const t = i + dir;
-            if (t < 0 || t >= mergeFiles.length) return;
-            [mergeFiles[i], mergeFiles[t]] = [mergeFiles[t], mergeFiles[i]];
-            renderMergeList();
         }
 
         function removeMerge(id) {
