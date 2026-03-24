@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TOOLS PDF - Separar e Juntar PDF</title>
-    <meta name="description" content="Separe páginas ou junte múltiplos arquivos PDF de forma rápida, segura e gratuita.">
+    <title>TOOLS PDF - Separar, Juntar e Converter PDF</title>
+    <meta name="description" content="Separe páginas, junte múltiplos arquivos ou converta PDF para Excel em lote, de forma rápida, segura e gratuita.">
     <meta name="author" content="Jonnathan Saldanha">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -165,6 +166,7 @@
         .btn-primary:hover { box-shadow: var(--shadow-primary); }
         .btn-success { background: var(--gradient-success); color: #fff; }
         .btn-warning { background: var(--gradient-warning); color: #fff; }
+        .btn-destructive { background: var(--destructive); color: #fff; }
         .btn-lg { padding: 1rem; font-size: 1rem; border-radius: var(--radius); width: 100%; font-size: 1.1rem; }
         .btn svg { width: 1rem; height: 1rem; }
         .btn-lg svg { width: 1.25rem; height: 1.25rem; }
@@ -252,7 +254,7 @@
             overflow: hidden;
         }
         .preview-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); border-color: var(--primary); }
-        .preview-card.selected { border-color: var(--secondary); box-shadow: var(--shadow-md); ring: 2px solid var(--secondary); }
+        .preview-card.selected { border-color: var(--secondary); box-shadow: var(--shadow-md); }
         .preview-card canvas { display: block; width: 160px; height: auto; }
         .preview-card .page-num {
             position: absolute;
@@ -282,7 +284,7 @@
             box-shadow: var(--shadow-sm);
         }
 
-        /* Merge file list with drag-drop */
+        /* File list items */
         .file-item {
             display: flex;
             align-items: center;
@@ -395,6 +397,101 @@
         }
         .footer span { color: var(--primary); font-weight: 600; }
 
+        /* Convert preview table */
+        .convert-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+        .convert-table th, .convert-table td {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border);
+            text-align: left;
+            white-space: nowrap;
+        }
+        .convert-table th {
+            background: var(--gradient);
+            color: var(--primary-fg);
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .convert-table tr:nth-child(even) { background: var(--accent-bg); }
+        .convert-table tr:hover { background: rgba(74,108,247,0.08); }
+        .page-separator {
+            background: var(--gradient) !important;
+            color: var(--primary-fg);
+            font-weight: 700;
+            text-align: center !important;
+        }
+
+        /* Batch file card for split */
+        .batch-file-card {
+            background: var(--card);
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 1rem;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+        .batch-file-card:hover { border-color: var(--primary); }
+        .batch-file-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            background: var(--accent-bg);
+            cursor: pointer;
+            gap: 0.5rem;
+        }
+        .batch-file-header .file-label {
+            font-weight: 700;
+            font-size: 0.95rem;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .batch-file-header .file-meta {
+            font-size: 0.8rem;
+            color: var(--muted);
+            flex-shrink: 0;
+        }
+        .batch-file-body { padding: 1rem; }
+        .batch-file-body.collapsed { display: none; }
+
+        /* Progress bar */
+        .progress-bar {
+            width: 100%;
+            height: 0.5rem;
+            background: var(--border);
+            border-radius: 9999px;
+            overflow: hidden;
+            margin-top: 0.75rem;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--gradient);
+            border-radius: 9999px;
+            transition: width 0.3s;
+        }
+
+        /* Batch counter badge */
+        .batch-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--gradient);
+            color: var(--primary-fg);
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 0.15rem 0.5rem;
+            border-radius: 9999px;
+            margin-left: 0.5rem;
+        }
+
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -412,7 +509,7 @@
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
                     </div>
                     <h1>TOOLS PDF</h1>
-                    <p>Separe páginas ou junte múltiplos arquivos PDF de forma rápida e segura</p>
+                    <p>Separe, junte ou converta seus arquivos PDF em lote de forma rápida e segura</p>
                 </div>
             </div>
 
@@ -426,56 +523,40 @@
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" /></svg>
                     Juntar PDF
                 </button>
+                <button class="tab-btn" onclick="switchTab('convert')" id="tab-convert">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5A1.125 1.125 0 0 0 12 9.375m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 0v1.5c0 .621-.504 1.125-1.125 1.125" /></svg>
+                    PDF → Excel
+                </button>
             </div>
 
             <div class="content">
-                <!-- SPLIT TAB -->
+                <!-- SPLIT TAB (BATCH) -->
                 <div class="tab-content active" id="content-split">
-                    <div class="grid-2">
-                        <div>
-                            <div class="panel">
-                                <h2>Carregar PDF</h2>
-                                <div class="upload-area" onclick="document.getElementById('splitInput').click()" id="splitUpload">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /></svg>
-                                    <p>Clique para selecionar um arquivo PDF</p>
-                                    <p>Ou arraste e solte o arquivo aqui</p>
-                                </div>
-                                <input type="file" accept=".pdf" id="splitInput" style="display:none" onchange="handleSplitFile(this)">
-                                <div id="splitInfo" style="display:none"></div>
-                            </div>
-                            <div class="panel" id="splitSelectPanel" style="display:none">
-                                <h2>Selecionar Páginas</h2>
-                                <div class="quick-btns">
-                                    <button class="btn btn-accent" onclick="selectAllPages()">☑ Todas</button>
-                                    <button class="btn btn-accent" onclick="selectNoPages()">☐ Nenhuma</button>
-                                    <button class="btn btn-accent" onclick="selectEvenPages()">→ Pares</button>
-                                    <button class="btn btn-accent" onclick="selectOddPages()">← Ímpares</button>
-                                </div>
-                                <div class="page-grid" id="pageGrid"></div>
-                                <div id="selectionBadge" style="display:none"></div>
-                            </div>
+                    <div class="panel">
+                        <h2>📂 Carregar PDFs para Separar <span id="splitBatchBadge"></span></h2>
+                        <div class="upload-area" onclick="document.getElementById('splitInput').click()" id="splitUpload">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /></svg>
+                            <p>Clique para selecionar um ou mais arquivos PDF</p>
+                            <p>Ou arraste e solte os arquivos aqui</p>
                         </div>
-                        <div>
-                            <div class="panel">
-                                <h2>Visualização</h2>
-                                <div id="previewArea">
-                                    <div class="preview-empty">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
-                                        <p style="font-size:1.1rem">Nenhum PDF carregado</p>
-                                        <p>Selecione um arquivo para visualizar</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="panel" id="splitActionsPanel" style="display:none">
-                                <h2>Ações de Extração</h2>
-                                <div class="grid-3">
-                                    <button class="btn btn-primary" id="btnSingle" onclick="extractSingle()" disabled>📄 PDF Único</button>
-                                    <button class="btn btn-success" id="btnZip" onclick="extractZip()" disabled>📦 Todos em ZIP</button>
-                                    <button class="btn btn-warning" id="btnIndividual" onclick="extractIndividual()" disabled>⬇ Individual</button>
-                                </div>
-                                <div id="splitLoader" style="display:none"></div>
-                            </div>
+                        <input type="file" accept=".pdf" multiple id="splitInput" style="display:none" onchange="handleSplitFiles(this)">
+                    </div>
+
+                    <div id="splitFilesList"></div>
+
+                    <div class="panel" id="splitActionsPanel" style="display:none">
+                        <h2>⚡ Ações em Lote</h2>
+                        <div class="quick-btns" style="margin-bottom:1rem">
+                            <button class="btn btn-accent" onclick="splitBatchSelectAll()">☑ Selecionar Todas</button>
+                            <button class="btn btn-accent" onclick="splitBatchSelectNone()">☐ Limpar Seleção</button>
+                            <button class="btn btn-destructive" onclick="splitBatchClear()">🗑 Remover Todos</button>
                         </div>
+                        <div class="grid-3">
+                            <button class="btn btn-primary btn-lg" id="btnBatchSingle" onclick="batchExtractSingle()" disabled>📄 PDF Único (cada)</button>
+                            <button class="btn btn-success btn-lg" id="btnBatchZip" onclick="batchExtractZip()" disabled>📦 Tudo em ZIP</button>
+                            <button class="btn btn-warning btn-lg" id="btnBatchIndividual" onclick="batchExtractIndividual()" disabled>⬇ Individual</button>
+                        </div>
+                        <div id="splitLoader" style="display:none"></div>
                     </div>
                 </div>
 
@@ -483,7 +564,7 @@
                 <div class="tab-content" id="content-merge">
                     <div class="merge-wrapper">
                         <div class="panel">
-                            <h2>Adicionar Arquivos PDF</h2>
+                            <h2>📂 Adicionar Arquivos PDF</h2>
                             <div class="upload-area" onclick="document.getElementById('mergeInput').click()" id="mergeUploadArea">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /></svg>
                                 <p>Clique para selecionar arquivos PDF</p>
@@ -509,6 +590,39 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- CONVERT TAB (BATCH) -->
+                <div class="tab-content" id="content-convert">
+                    <div class="merge-wrapper">
+                        <div class="panel">
+                            <h2>📂 Carregar PDFs para Converter <span id="convertBatchBadge"></span></h2>
+                            <div class="upload-area" onclick="document.getElementById('convertInput').click()" id="convertUploadArea">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /></svg>
+                                <p>Clique para selecionar um ou mais arquivos PDF</p>
+                                <p>Ou arraste e solte os arquivos aqui</p>
+                            </div>
+                            <input type="file" accept=".pdf" multiple id="convertInput" style="display:none" onchange="handleConvertFiles(this)">
+                        </div>
+                        <div id="convertFilesList"></div>
+                        <div class="panel" id="convertActionsPanel" style="display:none">
+                            <h2>⚡ Opções de Conversão em Lote</h2>
+                            <div class="grid-3" style="margin-bottom:1rem">
+                                <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;">
+                                    <input type="checkbox" id="convertSeparateSheets"> Uma aba por página
+                                </label>
+                            </div>
+                            <div class="grid-3" style="margin-bottom:0.5rem">
+                                <button class="btn btn-primary btn-lg" onclick="batchConvertIndividual()">📊 Um Excel por PDF</button>
+                                <button class="btn btn-success btn-lg" onclick="batchConvertSingle()">📗 Tudo em 1 Excel</button>
+                                <button class="btn btn-warning btn-lg" onclick="batchConvertZip()">📦 Todos em ZIP</button>
+                            </div>
+                            <div class="quick-btns" style="margin-top:0.75rem">
+                                <button class="btn btn-destructive" onclick="convertBatchClear()">🗑 Remover Todos</button>
+                            </div>
+                            <div id="convertLoader" style="display:none"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Footer -->
@@ -526,18 +640,29 @@
 
         // Make functions globally accessible
         window.switchTab = switchTab;
-        window.handleSplitFile = handleSplitFile;
+        window.handleSplitFiles = handleSplitFiles;
         window.handleMergeFiles = handleMergeFiles;
-        window.selectAllPages = selectAllPages;
-        window.selectNoPages = selectNoPages;
-        window.selectEvenPages = selectEvenPages;
-        window.selectOddPages = selectOddPages;
-        window.extractSingle = extractSingle;
-        window.extractZip = extractZip;
-        window.extractIndividual = extractIndividual;
+        window.handleConvertFiles = handleConvertFiles;
+        window.splitBatchSelectAll = splitBatchSelectAll;
+        window.splitBatchSelectNone = splitBatchSelectNone;
+        window.splitBatchClear = splitBatchClear;
+        window.batchExtractSingle = batchExtractSingle;
+        window.batchExtractZip = batchExtractZip;
+        window.batchExtractIndividual = batchExtractIndividual;
+        window.batchConvertIndividual = batchConvertIndividual;
+        window.batchConvertSingle = batchConvertSingle;
+        window.batchConvertZip = batchConvertZip;
+        window.convertBatchClear = convertBatchClear;
         window.mergePdfs = mergePdfs;
-        window.togglePage = togglePage;
         window.removeMerge = removeMerge;
+        window.toggleSplitPage = toggleSplitPage;
+        window.removeSplitFile = removeSplitFile;
+        window.removeConvertFile = removeConvertFile;
+        window.toggleSplitFileBody = toggleSplitFileBody;
+        window.splitFileSelectAll = splitFileSelectAll;
+        window.splitFileSelectNone = splitFileSelectNone;
+        window.splitFileSelectEven = splitFileSelectEven;
+        window.splitFileSelectOdd = splitFileSelectOdd;
 
         // Toast
         function showToast(msg, type = 'success') {
@@ -557,7 +682,7 @@
             document.getElementById('content-' + tab).classList.add('active');
         }
 
-        // === Render PDF page to canvas ===
+        // Render PDF page to canvas
         async function renderPageToCanvas(pdfData, pageNum, width) {
             const doc = await pdfjsLib.getDocument({ data: pdfData.slice() }).promise;
             const page = await doc.getPage(pageNum);
@@ -572,194 +697,292 @@
             return canvas;
         }
 
-        // ===== SPLIT =====
-        let splitDoc = null, splitBytes = null, splitFileName = '', splitTotalPages = 0;
-        let selectedPages = new Set();
-
         function formatSize(bytes) {
             if (bytes < 1024) return bytes + ' bytes';
             if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
             return (bytes / 1048576).toFixed(1) + ' MB';
         }
 
+        // ===== SPLIT (BATCH) =====
+        let splitFiles = []; // [{id, name, size, totalPages, doc, bytes, selectedPages: Set}]
+
         // Drag and drop for split upload
         const splitUpload = document.getElementById('splitUpload');
         splitUpload.addEventListener('dragover', e => { e.preventDefault(); splitUpload.style.background = 'rgba(74,108,247,0.06)'; });
         splitUpload.addEventListener('dragleave', () => { splitUpload.style.background = ''; });
-        splitUpload.addEventListener('drop', e => {
+        splitUpload.addEventListener('drop', async e => {
             e.preventDefault();
             splitUpload.style.background = '';
             const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
-            if (files.length) loadSplitPdf(files[0]);
+            if (files.length) await addSplitFiles(files);
         });
 
-        async function handleSplitFile(input) {
-            if (input.files[0]) await loadSplitPdf(input.files[0]);
+        async function handleSplitFiles(input) {
+            await addSplitFiles(Array.from(input.files));
             input.value = '';
         }
 
-        async function loadSplitPdf(file) {
-            try {
-                const buffer = await file.arrayBuffer();
-                splitBytes = new Uint8Array(buffer);
-                splitDoc = await PDFDocument.load(splitBytes);
-                splitTotalPages = splitDoc.getPageCount();
-                splitFileName = file.name.replace(/\.[^/.]+$/, '');
-                selectedPages = new Set();
-                showToast('PDF carregado! ' + splitTotalPages + ' página(s) disponível(is).');
-                renderSplitUI(file);
-            } catch (e) {
-                showToast('Erro ao carregar o PDF.', 'error');
-            }
-        }
-
-        function renderSplitUI(file) {
-            const info = document.getElementById('splitInfo');
-            info.style.display = 'block';
-            info.innerHTML = '<div class="info-box"><p><strong>Arquivo:</strong> ' + splitFileName + '.pdf</p><p><strong>Tamanho:</strong> ' + formatSize(file.size) + '</p><p><strong>Páginas:</strong> ' + splitTotalPages + '</p></div>';
-            document.getElementById('splitSelectPanel').style.display = 'block';
-            document.getElementById('splitActionsPanel').style.display = 'block';
-            renderPageGrid();
-            renderPreview();
-        }
-
-        function renderPageGrid() {
-            const grid = document.getElementById('pageGrid');
-            grid.innerHTML = '';
-            for (let i = 1; i <= splitTotalPages; i++) {
-                const btn = document.createElement('button');
-                btn.className = 'page-btn' + (selectedPages.has(i) ? ' selected' : '');
-                btn.textContent = i;
-                btn.onclick = () => { togglePage(i); };
-                grid.appendChild(btn);
-            }
-            updateSelectionUI();
-        }
-
-        async function renderPreview() {
-            const area = document.getElementById('previewArea');
-            const container = document.createElement('div');
-            container.className = 'preview-grid';
-
-            for (let i = 1; i <= splitTotalPages; i++) {
-                const sel = selectedPages.has(i);
-                const card = document.createElement('div');
-                card.className = 'preview-card' + (sel ? ' selected' : '');
-                card.onclick = () => togglePage(i);
-
-                // Render actual PDF page
+        async function addSplitFiles(files) {
+            let count = 0;
+            for (const file of files) {
                 try {
-                    const canvas = await renderPageToCanvas(splitBytes, i, 160);
-                    card.appendChild(canvas);
-                } catch(e) {
-                    const placeholder = document.createElement('div');
-                    placeholder.style.cssText = 'width:160px;height:200px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.8rem;';
-                    placeholder.textContent = 'Página ' + i;
-                    card.appendChild(placeholder);
+                    const buffer = await file.arrayBuffer();
+                    const bytes = new Uint8Array(buffer);
+                    const doc = await PDFDocument.load(bytes);
+                    const totalPages = doc.getPageCount();
+                    splitFiles.push({
+                        id: Math.random().toString(36).substr(2),
+                        name: file.name.replace(/\.[^/.]+$/, ''),
+                        size: file.size,
+                        totalPages,
+                        doc,
+                        bytes,
+                        selectedPages: new Set(),
+                        collapsed: false
+                    });
+                    count++;
+                } catch (e) { showToast('Erro ao carregar: ' + file.name, 'error'); }
+            }
+            if (count) { showToast(count + ' arquivo(s) adicionado(s)!'); renderSplitFilesList(); }
+        }
+
+        function renderSplitFilesList() {
+            const container = document.getElementById('splitFilesList');
+            const badge = document.getElementById('splitBatchBadge');
+            if (splitFiles.length === 0) {
+                container.innerHTML = '';
+                badge.innerHTML = '';
+                document.getElementById('splitActionsPanel').style.display = 'none';
+                return;
+            }
+            badge.innerHTML = '<span class="batch-badge">' + splitFiles.length + ' arquivo(s)</span>';
+            document.getElementById('splitActionsPanel').style.display = 'block';
+
+            container.innerHTML = '';
+            for (let fi = 0; fi < splitFiles.length; fi++) {
+                const sf = splitFiles[fi];
+                const card = document.createElement('div');
+                card.className = 'batch-file-card';
+
+                // Header
+                const header = document.createElement('div');
+                header.className = 'batch-file-header';
+                header.onclick = () => toggleSplitFileBody(sf.id);
+                header.innerHTML = '<span class="file-label">📄 ' + sf.name + '.pdf</span>' +
+                    '<span class="file-meta">' + formatSize(sf.size) + ' · ' + sf.totalPages + ' pág · ' + sf.selectedPages.size + ' selecionada(s)</span>' +
+                    '<button class="icon-btn delete" onclick="event.stopPropagation(); removeSplitFile(\'' + sf.id + '\')" title="Remover">' +
+                    '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg></button>';
+                card.appendChild(header);
+
+                // Body
+                const body = document.createElement('div');
+                body.className = 'batch-file-body' + (sf.collapsed ? ' collapsed' : '');
+                body.id = 'split-body-' + sf.id;
+
+                // Quick buttons
+                const quickHtml = '<div class="quick-btns">' +
+                    '<button class="btn btn-accent" onclick="splitFileSelectAll(\'' + sf.id + '\')">☑ Todas</button>' +
+                    '<button class="btn btn-accent" onclick="splitFileSelectNone(\'' + sf.id + '\')">☐ Nenhuma</button>' +
+                    '<button class="btn btn-accent" onclick="splitFileSelectEven(\'' + sf.id + '\')">→ Pares</button>' +
+                    '<button class="btn btn-accent" onclick="splitFileSelectOdd(\'' + sf.id + '\')">← Ímpares</button>' +
+                    '</div>';
+                body.innerHTML = quickHtml;
+
+                // Page grid
+                const grid = document.createElement('div');
+                grid.className = 'page-grid';
+                for (let p = 1; p <= sf.totalPages; p++) {
+                    const btn = document.createElement('button');
+                    btn.className = 'page-btn' + (sf.selectedPages.has(p) ? ' selected' : '');
+                    btn.textContent = p;
+                    const page = p;
+                    const fileId = sf.id;
+                    btn.onclick = () => toggleSplitPage(fileId, page);
+                    grid.appendChild(btn);
+                }
+                body.appendChild(grid);
+
+                if (sf.selectedPages.size > 0) {
+                    const selBadge = document.createElement('div');
+                    selBadge.className = 'selection-badge';
+                    selBadge.textContent = sf.selectedPages.size + ' página(s) selecionada(s)';
+                    body.appendChild(selBadge);
                 }
 
-                const numBadge = document.createElement('span');
-                numBadge.className = 'page-num';
-                numBadge.textContent = i;
-                card.appendChild(numBadge);
-
-                if (sel) {
-                    const check = document.createElement('span');
-                    check.className = 'check';
-                    check.textContent = '✓';
-                    card.appendChild(check);
-                }
-
+                card.appendChild(body);
                 container.appendChild(card);
             }
-
-            area.innerHTML = '';
-            area.appendChild(container);
+            updateSplitBatchButtons();
         }
 
-        function togglePage(p) {
-            selectedPages.has(p) ? selectedPages.delete(p) : selectedPages.add(p);
-            renderPageGrid();
-            renderPreview();
+        function toggleSplitFileBody(id) {
+            const sf = splitFiles.find(f => f.id === id);
+            if (!sf) return;
+            sf.collapsed = !sf.collapsed;
+            const el = document.getElementById('split-body-' + id);
+            if (el) el.classList.toggle('collapsed');
         }
 
-        function selectAllPages() { for (let i = 1; i <= splitTotalPages; i++) selectedPages.add(i); renderPageGrid(); renderPreview(); }
-        function selectNoPages() { selectedPages.clear(); renderPageGrid(); renderPreview(); }
-        function selectEvenPages() { selectedPages.clear(); for (let i = 2; i <= splitTotalPages; i += 2) selectedPages.add(i); renderPageGrid(); renderPreview(); }
-        function selectOddPages() { selectedPages.clear(); for (let i = 1; i <= splitTotalPages; i += 2) selectedPages.add(i); renderPageGrid(); renderPreview(); }
-
-        function updateSelectionUI() {
-            const badge = document.getElementById('selectionBadge');
-            const dis = selectedPages.size === 0;
-            document.getElementById('btnSingle').disabled = dis;
-            document.getElementById('btnZip').disabled = dis;
-            document.getElementById('btnIndividual').disabled = dis;
-            if (selectedPages.size > 0) {
-                badge.style.display = 'block';
-                badge.innerHTML = '<div class="selection-badge">' + selectedPages.size + ' página(s) selecionada(s)</div>';
-            } else {
-                badge.style.display = 'none';
-            }
+        function toggleSplitPage(fileId, page) {
+            const sf = splitFiles.find(f => f.id === fileId);
+            if (!sf) return;
+            sf.selectedPages.has(page) ? sf.selectedPages.delete(page) : sf.selectedPages.add(page);
+            renderSplitFilesList();
         }
 
-        function getSorted() { return Array.from(selectedPages).sort((a, b) => a - b); }
+        function removeSplitFile(id) {
+            splitFiles = splitFiles.filter(f => f.id !== id);
+            renderSplitFilesList();
+        }
+
+        function splitFileSelectAll(id) {
+            const sf = splitFiles.find(f => f.id === id);
+            if (!sf) return;
+            for (let i = 1; i <= sf.totalPages; i++) sf.selectedPages.add(i);
+            renderSplitFilesList();
+        }
+        function splitFileSelectNone(id) {
+            const sf = splitFiles.find(f => f.id === id);
+            if (!sf) return;
+            sf.selectedPages.clear();
+            renderSplitFilesList();
+        }
+        function splitFileSelectEven(id) {
+            const sf = splitFiles.find(f => f.id === id);
+            if (!sf) return;
+            sf.selectedPages.clear();
+            for (let i = 2; i <= sf.totalPages; i += 2) sf.selectedPages.add(i);
+            renderSplitFilesList();
+        }
+        function splitFileSelectOdd(id) {
+            const sf = splitFiles.find(f => f.id === id);
+            if (!sf) return;
+            sf.selectedPages.clear();
+            for (let i = 1; i <= sf.totalPages; i += 2) sf.selectedPages.add(i);
+            renderSplitFilesList();
+        }
+
+        function splitBatchSelectAll() {
+            splitFiles.forEach(sf => { for (let i = 1; i <= sf.totalPages; i++) sf.selectedPages.add(i); });
+            renderSplitFilesList();
+        }
+        function splitBatchSelectNone() {
+            splitFiles.forEach(sf => sf.selectedPages.clear());
+            renderSplitFilesList();
+        }
+        function splitBatchClear() {
+            splitFiles = [];
+            renderSplitFilesList();
+        }
+
+        function getTotalSelectedSplit() {
+            return splitFiles.reduce((sum, sf) => sum + sf.selectedPages.size, 0);
+        }
+
+        function updateSplitBatchButtons() {
+            const total = getTotalSelectedSplit();
+            const dis = total === 0;
+            document.getElementById('btnBatchSingle').disabled = dis;
+            document.getElementById('btnBatchZip').disabled = dis;
+            document.getElementById('btnBatchIndividual').disabled = dis;
+        }
 
         function showSplitLoader(text) {
-            document.getElementById('splitLoader').style.display = 'block';
-            document.getElementById('splitLoader').innerHTML = '<div class="loader"><div class="spinner"></div><p>' + text + '</p></div>';
+            const el = document.getElementById('splitLoader');
+            el.style.display = 'block';
+            el.innerHTML = '<div class="loader"><div class="spinner"></div><p>' + text + '</p></div>';
         }
         function hideSplitLoader() { document.getElementById('splitLoader').style.display = 'none'; }
 
-        async function extractSingle() {
-            const sorted = getSorted();
-            if (!splitDoc || !sorted.length) return;
-            showSplitLoader('Gerando PDF...');
+        // Extract: one PDF per file with selected pages
+        async function batchExtractSingle() {
+            const filesWithSelection = splitFiles.filter(sf => sf.selectedPages.size > 0);
+            if (!filesWithSelection.length) return;
+
+            if (filesWithSelection.length === 1) {
+                const sf = filesWithSelection[0];
+                const sorted = Array.from(sf.selectedPages).sort((a, b) => a - b);
+                showSplitLoader('Gerando PDF...');
+                try {
+                    const newPdf = await PDFDocument.create();
+                    const pages = await newPdf.copyPages(sf.doc, sorted.map(p => p - 1));
+                    pages.forEach(p => newPdf.addPage(p));
+                    const bytes = await newPdf.save();
+                    saveAs(new Blob([bytes], { type: 'application/pdf' }), sf.name + '_extraido.pdf');
+                    showToast('PDF gerado com sucesso!');
+                } catch (e) { showToast('Erro ao gerar PDF.', 'error'); }
+                hideSplitLoader();
+                return;
+            }
+
+            // Multiple files: generate ZIP
+            showSplitLoader('Gerando PDFs em lote...');
             try {
-                const newPdf = await PDFDocument.create();
-                const pages = await newPdf.copyPages(splitDoc, sorted.map(p => p - 1));
-                pages.forEach(p => newPdf.addPage(p));
-                const bytes = await newPdf.save();
-                saveAs(new Blob([bytes], { type: 'application/pdf' }), splitFileName + '_extraido.pdf');
-                showToast('PDF gerado com sucesso!');
-            } catch (e) { showToast('Erro ao gerar PDF.', 'error'); }
+                const zip = new JSZip();
+                for (let i = 0; i < filesWithSelection.length; i++) {
+                    const sf = filesWithSelection[i];
+                    const sorted = Array.from(sf.selectedPages).sort((a, b) => a - b);
+                    showSplitLoader('Processando ' + (i + 1) + ' de ' + filesWithSelection.length + '...');
+                    const newPdf = await PDFDocument.create();
+                    const pages = await newPdf.copyPages(sf.doc, sorted.map(p => p - 1));
+                    pages.forEach(p => newPdf.addPage(p));
+                    zip.file(sf.name + '_extraido.pdf', await newPdf.save());
+                }
+                const blob = await zip.generateAsync({ type: 'blob' });
+                saveAs(blob, 'pdfs_extraidos.zip');
+                showToast('ZIP gerado com ' + filesWithSelection.length + ' arquivo(s)!');
+            } catch (e) { showToast('Erro ao gerar ZIP.', 'error'); }
             hideSplitLoader();
         }
 
-        async function extractZip() {
-            const sorted = getSorted();
-            if (!splitDoc || !sorted.length) return;
+        // Extract: all selected pages from all files into one ZIP (individual pages)
+        async function batchExtractZip() {
+            const filesWithSelection = splitFiles.filter(sf => sf.selectedPages.size > 0);
+            if (!filesWithSelection.length) return;
             showSplitLoader('Criando ZIP...');
             try {
                 const zip = new JSZip();
-                for (const pn of sorted) {
-                    showSplitLoader('Processando página ' + pn + '...');
-                    const s = await PDFDocument.create();
-                    const [pg] = await s.copyPages(splitDoc, [pn - 1]);
-                    s.addPage(pg);
-                    zip.file(splitFileName + '_pagina_' + pn + '.pdf', await s.save());
+                let pageCount = 0;
+                for (const sf of filesWithSelection) {
+                    const sorted = Array.from(sf.selectedPages).sort((a, b) => a - b);
+                    for (const pn of sorted) {
+                        pageCount++;
+                        showSplitLoader('Processando página ' + pageCount + '...');
+                        const s = await PDFDocument.create();
+                        const [pg] = await s.copyPages(sf.doc, [pn - 1]);
+                        s.addPage(pg);
+                        zip.file(sf.name + '_pagina_' + pn + '.pdf', await s.save());
+                    }
                 }
                 const blob = await zip.generateAsync({ type: 'blob' });
-                saveAs(blob, splitFileName + '_paginas.zip');
-                showToast('ZIP criado com sucesso!');
+                saveAs(blob, 'paginas_separadas.zip');
+                showToast('ZIP criado com ' + pageCount + ' página(s)!');
             } catch (e) { showToast('Erro ao criar ZIP.', 'error'); }
             hideSplitLoader();
         }
 
-        async function extractIndividual() {
-            const sorted = getSorted();
-            if (!splitDoc || !sorted.length) return;
+        // Extract: download each page individually
+        async function batchExtractIndividual() {
+            const filesWithSelection = splitFiles.filter(sf => sf.selectedPages.size > 0);
+            if (!filesWithSelection.length) return;
+            const total = getTotalSelectedSplit();
             showSplitLoader('Baixando...');
             try {
-                for (let i = 0; i < sorted.length; i++) {
-                    showSplitLoader('Baixando página ' + (i + 1) + ' de ' + sorted.length + '...');
-                    const s = await PDFDocument.create();
-                    const [pg] = await s.copyPages(splitDoc, [sorted[i] - 1]);
-                    s.addPage(pg);
-                    saveAs(new Blob([await s.save()], { type: 'application/pdf' }), splitFileName + '_pagina_' + sorted[i] + '.pdf');
-                    if (i < sorted.length - 1) await new Promise(r => setTimeout(r, 300));
+                let count = 0;
+                for (const sf of filesWithSelection) {
+                    const sorted = Array.from(sf.selectedPages).sort((a, b) => a - b);
+                    for (const pn of sorted) {
+                        count++;
+                        showSplitLoader('Baixando ' + count + ' de ' + total + '...');
+                        const s = await PDFDocument.create();
+                        const [pg] = await s.copyPages(sf.doc, [pn - 1]);
+                        s.addPage(pg);
+                        saveAs(new Blob([await s.save()], { type: 'application/pdf' }), sf.name + '_pagina_' + pn + '.pdf');
+                        await new Promise(r => setTimeout(r, 300));
+                    }
                 }
-                showToast('Downloads concluídos!');
-            } catch (e) { showToast('Erro ao baixar arquivos.', 'error'); }
+                showToast('Downloads concluídos! ' + count + ' arquivo(s).');
+            } catch (e) { showToast('Erro ao baixar.', 'error'); }
             hideSplitLoader();
         }
 
@@ -767,7 +990,6 @@
         let mergeFiles = [];
         let dragSrcIndex = null;
 
-        // Drag and drop for merge upload area
         const mergeUploadArea = document.getElementById('mergeUploadArea');
         mergeUploadArea.addEventListener('dragover', e => { e.preventDefault(); mergeUploadArea.style.background = 'rgba(74,108,247,0.06)'; });
         mergeUploadArea.addEventListener('dragleave', () => { mergeUploadArea.style.background = ''; });
@@ -813,7 +1035,6 @@
                 item.draggable = true;
                 item.dataset.index = i;
 
-                // Drag events for reordering
                 item.addEventListener('dragstart', (e) => {
                     dragSrcIndex = i;
                     item.classList.add('dragging');
@@ -829,9 +1050,7 @@
                     e.dataTransfer.dropEffect = 'move';
                     item.classList.add('drag-over');
                 });
-                item.addEventListener('dragleave', () => {
-                    item.classList.remove('drag-over');
-                });
+                item.addEventListener('dragleave', () => { item.classList.remove('drag-over'); });
                 item.addEventListener('drop', (e) => {
                     e.preventDefault();
                     item.classList.remove('drag-over');
@@ -844,13 +1063,11 @@
                     }
                 });
 
-                // Drag handle
                 const handle = document.createElement('div');
                 handle.className = 'drag-handle';
                 handle.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>';
                 item.appendChild(handle);
 
-                // Thumbnail
                 const thumb = document.createElement('div');
                 thumb.className = 'file-thumb';
                 try {
@@ -861,13 +1078,11 @@
                 }
                 item.appendChild(thumb);
 
-                // Info
                 const info = document.createElement('div');
                 info.className = 'file-info';
                 info.innerHTML = '<p>' + f.name + '</p><p>' + formatSize(f.size) + ' · ' + f.pages + ' página(s)</p>';
                 item.appendChild(info);
 
-                // Actions
                 const actions = document.createElement('div');
                 actions.className = 'file-actions';
                 const delBtn = document.createElement('button');
@@ -908,6 +1123,219 @@
                 showToast('PDFs combinados com sucesso!');
             } catch (e) { showToast('Erro ao combinar PDFs.', 'error'); }
             loader.style.display = 'none';
+        }
+
+        // ===== CONVERT PDF TO EXCEL (BATCH) =====
+        let convertFiles = []; // [{id, name, size, bytes, pages: [{pageNum, rows}]}]
+
+        const convertUploadArea = document.getElementById('convertUploadArea');
+        convertUploadArea.addEventListener('dragover', e => { e.preventDefault(); convertUploadArea.style.background = 'rgba(74,108,247,0.06)'; });
+        convertUploadArea.addEventListener('dragleave', () => { convertUploadArea.style.background = ''; });
+        convertUploadArea.addEventListener('drop', async e => {
+            e.preventDefault();
+            convertUploadArea.style.background = '';
+            const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
+            if (files.length) await addConvertFiles(files);
+        });
+
+        async function handleConvertFiles(input) {
+            await addConvertFiles(Array.from(input.files));
+            input.value = '';
+        }
+
+        async function addConvertFiles(files) {
+            let count = 0;
+            for (const file of files) {
+                try {
+                    const buffer = await file.arrayBuffer();
+                    const bytes = new Uint8Array(buffer);
+                    const fileName = file.name.replace(/\.[^/.]+$/, '');
+
+                    const doc = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+                    const totalPages = doc.numPages;
+                    const pages = [];
+
+                    for (let i = 1; i <= totalPages; i++) {
+                        const page = await doc.getPage(i);
+                        const content = await page.getTextContent();
+                        const items = content.items;
+                        if (!items.length) continue;
+
+                        const rows = {};
+                        items.forEach(item => {
+                            const y = Math.round(item.transform[5]);
+                            if (!rows[y]) rows[y] = [];
+                            rows[y].push({ x: item.transform[4], text: item.str.trim() });
+                        });
+
+                        const sortedYs = Object.keys(rows).map(Number).sort((a, b) => b - a);
+                        const pageRows = sortedYs.map(y => {
+                            const sorted = rows[y].sort((a, b) => a.x - b.x);
+                            return sorted.map(item => item.text).filter(t => t);
+                        }).filter(r => r.length > 0);
+
+                        pages.push({ pageNum: i, rows: pageRows });
+                    }
+
+                    convertFiles.push({
+                        id: Math.random().toString(36).substr(2),
+                        name: fileName,
+                        size: file.size,
+                        totalPages,
+                        pagesWithText: pages.length,
+                        pages
+                    });
+                    count++;
+                } catch (e) { showToast('Erro ao carregar: ' + file.name, 'error'); }
+            }
+            if (count) { showToast(count + ' arquivo(s) adicionado(s)!'); renderConvertFilesList(); }
+        }
+
+        function renderConvertFilesList() {
+            const container = document.getElementById('convertFilesList');
+            const badge = document.getElementById('convertBatchBadge');
+            if (convertFiles.length === 0) {
+                container.innerHTML = '';
+                badge.innerHTML = '';
+                document.getElementById('convertActionsPanel').style.display = 'none';
+                return;
+            }
+            badge.innerHTML = '<span class="batch-badge">' + convertFiles.length + ' arquivo(s)</span>';
+            document.getElementById('convertActionsPanel').style.display = 'block';
+
+            container.innerHTML = '';
+            for (const cf of convertFiles) {
+                const card = document.createElement('div');
+                card.className = 'batch-file-card';
+                card.innerHTML = '<div class="batch-file-header">' +
+                    '<span class="file-label">📄 ' + cf.name + '.pdf</span>' +
+                    '<span class="file-meta">' + formatSize(cf.size) + ' · ' + cf.totalPages + ' pág · ' + cf.pagesWithText + ' com texto</span>' +
+                    '<button class="icon-btn delete" onclick="removeConvertFile(\'' + cf.id + '\')" title="Remover">' +
+                    '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg></button>' +
+                    '</div>';
+                container.appendChild(card);
+            }
+        }
+
+        function removeConvertFile(id) {
+            convertFiles = convertFiles.filter(f => f.id !== id);
+            renderConvertFilesList();
+        }
+
+        function convertBatchClear() {
+            convertFiles = [];
+            renderConvertFilesList();
+        }
+
+        function showConvertLoader(text) {
+            const el = document.getElementById('convertLoader');
+            el.style.display = 'block';
+            el.innerHTML = '<div class="loader"><div class="spinner"></div><p>' + text + '</p></div>';
+        }
+        function hideConvertLoader() { document.getElementById('convertLoader').style.display = 'none'; }
+
+        function buildWorkbook(cf, separateSheets) {
+            const wb = XLSX.utils.book_new();
+            if (separateSheets) {
+                for (const page of cf.pages) {
+                    const ws = XLSX.utils.aoa_to_sheet(page.rows);
+                    XLSX.utils.book_append_sheet(wb, ws, 'Página ' + page.pageNum);
+                }
+            } else {
+                const allRows = [];
+                for (const page of cf.pages) {
+                    if (cf.pages.length > 1) allRows.push(['--- Página ' + page.pageNum + ' ---']);
+                    allRows.push(...page.rows);
+                }
+                const ws = XLSX.utils.aoa_to_sheet(allRows);
+                XLSX.utils.book_append_sheet(wb, ws, 'Dados');
+            }
+            return wb;
+        }
+
+        // One Excel per PDF
+        async function batchConvertIndividual() {
+            if (!convertFiles.length) return;
+            const separateSheets = document.getElementById('convertSeparateSheets').checked;
+
+            if (convertFiles.length === 1) {
+                showConvertLoader('Convertendo...');
+                try {
+                    const wb = buildWorkbook(convertFiles[0], separateSheets);
+                    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                    saveAs(new Blob([wbout], { type: 'application/octet-stream' }), convertFiles[0].name + '.xlsx');
+                    showToast('Excel gerado com sucesso!');
+                } catch (e) { showToast('Erro na conversão.', 'error'); }
+                hideConvertLoader();
+                return;
+            }
+
+            showConvertLoader('Convertendo em lote...');
+            try {
+                for (let i = 0; i < convertFiles.length; i++) {
+                    showConvertLoader('Convertendo ' + (i + 1) + ' de ' + convertFiles.length + '...');
+                    const wb = buildWorkbook(convertFiles[i], separateSheets);
+                    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                    saveAs(new Blob([wbout], { type: 'application/octet-stream' }), convertFiles[i].name + '.xlsx');
+                    await new Promise(r => setTimeout(r, 300));
+                }
+                showToast(convertFiles.length + ' arquivo(s) convertido(s)!');
+            } catch (e) { showToast('Erro na conversão.', 'error'); }
+            hideConvertLoader();
+        }
+
+        // All PDFs into one Excel
+        async function batchConvertSingle() {
+            if (!convertFiles.length) return;
+            const separateSheets = document.getElementById('convertSeparateSheets').checked;
+            showConvertLoader('Combinando em um Excel...');
+            try {
+                const wb = XLSX.utils.book_new();
+                if (separateSheets) {
+                    for (const cf of convertFiles) {
+                        for (const page of cf.pages) {
+                            const ws = XLSX.utils.aoa_to_sheet(page.rows);
+                            let sheetName = cf.name.substring(0, 20) + '_P' + page.pageNum;
+                            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                        }
+                    }
+                } else {
+                    for (const cf of convertFiles) {
+                        const allRows = [];
+                        for (const page of cf.pages) {
+                            if (cf.pages.length > 1) allRows.push(['--- Página ' + page.pageNum + ' ---']);
+                            allRows.push(...page.rows);
+                        }
+                        const ws = XLSX.utils.aoa_to_sheet(allRows);
+                        let sheetName = cf.name.substring(0, 31);
+                        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                    }
+                }
+                const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                saveAs(new Blob([wbout], { type: 'application/octet-stream' }), 'todos_convertidos.xlsx');
+                showToast('Excel combinado gerado!');
+            } catch (e) { showToast('Erro na conversão.', 'error'); console.error(e); }
+            hideConvertLoader();
+        }
+
+        // All Excels into one ZIP
+        async function batchConvertZip() {
+            if (!convertFiles.length) return;
+            const separateSheets = document.getElementById('convertSeparateSheets').checked;
+            showConvertLoader('Criando ZIP...');
+            try {
+                const zip = new JSZip();
+                for (let i = 0; i < convertFiles.length; i++) {
+                    showConvertLoader('Convertendo ' + (i + 1) + ' de ' + convertFiles.length + '...');
+                    const wb = buildWorkbook(convertFiles[i], separateSheets);
+                    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                    zip.file(convertFiles[i].name + '.xlsx', wbout);
+                }
+                const blob = await zip.generateAsync({ type: 'blob' });
+                saveAs(blob, 'excel_convertidos.zip');
+                showToast('ZIP com ' + convertFiles.length + ' Excel(s) gerado!');
+            } catch (e) { showToast('Erro ao criar ZIP.', 'error'); }
+            hideConvertLoader();
         }
     </script>
 </body>
